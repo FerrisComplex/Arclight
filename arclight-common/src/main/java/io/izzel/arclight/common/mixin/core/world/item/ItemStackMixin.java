@@ -2,6 +2,7 @@ package io.izzel.arclight.common.mixin.core.world.item;
 
 import io.izzel.arclight.common.bridge.core.entity.player.ServerPlayerEntityBridge;
 import io.izzel.arclight.common.bridge.core.item.ItemStackBridge;
+import io.izzel.arclight.common.mod.util.ArclightTagHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
@@ -46,6 +47,19 @@ public abstract class ItemStackMixin extends CapabilityProvider<ItemStack> imple
     @Override
     public CompoundTag bridge$getForgeCaps() {
         return this.serializeCaps();
+    }
+
+    public String bridge$getForgeCapsString() { return this.serializeCaps().toString(); }
+    public void bridge$setForgeCapsString(String compound) {
+        try {
+            var caps = ArclightTagHelper.getTagFromJson(compound);;
+            this.capNBT = caps;
+            if(caps != null) {
+                this.deserializeCaps(caps);
+            }
+        } catch (Throwable t) {
+        }
+
     }
 
     @Override
