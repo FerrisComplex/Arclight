@@ -6,3 +6,11 @@ build/
 /.settings/
 .idea
 *.log
+/Spigot/
+/work/
+/PortableGit-2.30.0-64-bit/
+/CraftBukkit/
+/Bukkit/
+/BuildData/
+/build/
+/apache-maven-3.6.0/

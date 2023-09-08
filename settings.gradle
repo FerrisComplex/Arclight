@@ -1,4 +1,4 @@
-rootProject.name = 'arclight'
+rootProject.name = 'Arclight'
 include 'arclight-common'
 include 'forge-installer'
 include 'arclight-forge'

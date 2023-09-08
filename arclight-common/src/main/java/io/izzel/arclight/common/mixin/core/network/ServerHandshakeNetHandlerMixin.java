@@ -1,9 +1,12 @@
 package io.izzel.arclight.common.mixin.core.network;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.mojang.authlib.properties.Property;
 import com.mojang.util.UUIDTypeAdapter;
 import io.izzel.arclight.common.bridge.core.network.NetworkManagerBridge;
+import io.izzel.arclight.common.bridge.core.network.play.HandshakeBridge;
 import net.minecraft.SharedConstants;
 import net.minecraft.network.Connection;
 import net.minecraft.network.ConnectionProtocol;
@@ -27,6 +30,7 @@ import org.spongepowered.asm.mixin.Shadow;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.text.MessageFormat;
+import java.util.ArrayList;
 import java.util.HashMap;
 
 @Mixin(ServerHandshakePacketListenerImpl.class)
@@ -49,7 +53,8 @@ public class ServerHandshakeNetHandlerMixin {
     @Overwrite
     public void handleIntention(ClientIntentionPacket packetIn) {
         if (!ServerLifecycleHooks.handleServerLogin(packetIn, this.connection)) return;
-        ((NetworkManagerBridge) this.connection).bridge$setHostname(packetIn.hostName + ":" + packetIn.port);
+
+
         switch (packetIn.getIntention()) {
             case LOGIN: {
                 this.connection.setProtocol(ConnectionProtocol.LOGIN);
@@ -94,20 +99,27 @@ public class ServerHandshakeNetHandlerMixin {
 
 
                 if (SpigotConfig.bungee) {
-                    String[] split = packetIn.hostName.split("\00");
-                    if (split.length == 3 || split.length == 4) {
-                        packetIn.hostName = split[0];
-                        this.connection.address = new InetSocketAddress(split[1], ((InetSocketAddress) this.connection.getRemoteAddress()).getPort());
-                        ((NetworkManagerBridge) this.connection).bridge$setSpoofedUUID(UUIDTypeAdapter.fromString(split[2]));
-                    } else {
-                        var component = Component.literal("If you wish to use IP forwarding, please enable it in your BungeeCord config as well!");
-                        this.connection.send(new ClientboundLoginDisconnectPacket(component));
-                        this.connection.disconnect(component);
-                        return;
+                    JsonObject data = ((HandshakeBridge) packetIn).getRealJsonObject();
+
+                    packetIn.hostName = data.get("h").getAsString();
+                    this.connection.address = new InetSocketAddress(data.get("rIp").getAsString(), ((InetSocketAddress) this.connection.getRemoteAddress()).getPort());
+                    ((NetworkManagerBridge) this.connection).bridge$setSpoofedUUID(UUIDTypeAdapter.fromString(data.get("u").getAsString()));
+                    if (data.has("p")) {
+
+                        ArrayList<Property> properties = new ArrayList<>();
+                        for(JsonElement s : data.get("p").getAsJsonArray()) {
+                            JsonObject prop = s.getAsJsonObject();
+                            if(prop.has("s") && !prop.get("s").getAsString().isEmpty())
+                                properties.add(new Property(prop.get("n").getAsString(), prop.get("v").getAsString(), prop.get("s").getAsString()));
+                            else
+                                properties.add(new Property(prop.get("n").getAsString(), prop.get("v").getAsString()));
+                        }
+
+                        Property[] array = properties.toArray(new Property[0]);
+                        ((NetworkManagerBridge) this.connection).bridge$setSpoofedProfile(array);
+
                     }
-                    if (split.length == 4) {
-                        ((NetworkManagerBridge) this.connection).bridge$setSpoofedProfile(gson.fromJson(split[3], Property[].class));
-                    }
+                    System.out.println("Completed set all spoofed arguments from " + data.toString());
                 }
 
                 break;

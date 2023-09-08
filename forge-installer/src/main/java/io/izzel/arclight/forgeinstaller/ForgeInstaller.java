@@ -122,7 +122,10 @@ public class ForgeInstaller {
     private static CompletableFuture<Path>[] installForge(InstallInfo info, ExecutorService pool, Consumer<String> logger) {
         var minecraftData = CompletableFuture.supplyAsync(() -> {
             logger.accept("Downloading mc version manifest...");
+            int i = 1;
             for (Map.Entry<String, String> entry : Mirrors.getVersionManifest()) {
+                logger.accept("Starting Entry " + i);
+                i += 1;
                 try (var stream = FileDownloader.read(entry.getValue())) {
                     var bytes = stream.readAllBytes();
                     var element = new JsonParser().parse(new String(bytes, StandardCharsets.UTF_8)).getAsJsonObject();

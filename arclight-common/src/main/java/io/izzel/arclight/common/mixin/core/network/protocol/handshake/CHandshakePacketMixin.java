@@ -1,7 +1,10 @@
 package io.izzel.arclight.common.mixin.core.network.protocol.handshake;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 import com.mojang.authlib.properties.Property;
+import io.izzel.arclight.common.bridge.core.network.play.HandshakeBridge;
+import net.minecraft.network.ConnectionProtocol;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.protocol.handshake.ClientIntentionPacket;
 import net.minecraftforge.network.NetworkConstants;
@@ -14,15 +17,20 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.util.ArrayList;
 import java.util.Objects;
 
 @Mixin(ClientIntentionPacket.class)
-public class CHandshakePacketMixin {
+public class CHandshakePacketMixin implements HandshakeBridge {
 
     private static final String EXTRA_DATA = "extraData";
     private static final Gson GSON = new Gson();
 
+    private JsonObject realObject = null;
+
     @Shadow public String hostName;
+
+    @Shadow private String fmlVersion;
 
     @Redirect(method = "<init>(Lnet/minecraft/network/FriendlyByteBuf;)V", at = @At(value = "INVOKE", target = "Lnet/minecraft/network/FriendlyByteBuf;readUtf(I)Ljava/lang/String;"))
     private String arclight$bungeeHostname(FriendlyByteBuf packetBuffer, int maxLength) {
@@ -31,21 +39,16 @@ public class CHandshakePacketMixin {
 
     @Redirect(method = "<init>(Lnet/minecraft/network/FriendlyByteBuf;)V", at = @At(value = "INVOKE", remap = false, target = "Lnet/minecraftforge/network/NetworkHooks;getFMLVersion(Ljava/lang/String;)Ljava/lang/String;"))
     private String arclight$readFromProfile(String ip) {
-        String fmlVersion = NetworkHooks.getFMLVersion(ip);
-        if (SpigotConfig.bungee && !Objects.equals(fmlVersion, NetworkConstants.NETVERSION)) {
-            String[] split = ip.split("\0");
-            if (split.length == 4) {
-                Property[] properties = GSON.fromJson(split[3], Property[].class);
-                for (Property property : properties) {
-                    if (Objects.equals(property.getName(), EXTRA_DATA)) {
-                        String extraData = property.getValue().replace("\1", "\0");
-                        this.arclight$host = ip;
-                        return NetworkHooks.getFMLVersion(split[0] + extraData);
-                    }
-                }
+        // ip is the raw hostname data
+        try {
+            JsonObject jo = GSON.fromJson(ip, JsonObject.class);
+            this.realObject = jo;
+            if (jo.has("h")) {
+                this.arclight$host = jo.get("h").getAsString();
+                return "FML3";
             }
-        }
-        return fmlVersion;
+        } catch (Throwable t) {}
+        return NetworkHooks.getFMLVersion(ip);
     }
 
     private transient String arclight$host;
@@ -56,5 +59,15 @@ public class CHandshakePacketMixin {
             this.hostName = arclight$host;
             arclight$host = null;
         }
+    }
+
+    @Override
+    public JsonObject getRealJsonObject() {
+        return realObject;
+    }
+
+    @Override
+    public Gson getGson() {
+        return GSON;
     }
 }
